@@ -124,4 +124,28 @@ RSpec.describe ActiveInteraction::HashFilter, :filter do
       expect(filter.database_column_type).to be :string
     end
   end
+
+  describe 'nesting limit' do
+    def nested_hash(depth)
+      (1..depth).inject({ leaf: 1 }) { |acc, _| { k: acc } }
+    end
+
+    it 'accepts hashes at the maximum nesting depth' do
+      result = filter.process(nested_hash(ActiveInteraction::HashFilter::MAX_NESTING - 1), nil)
+      expect(result.errors).to be_empty
+    end
+
+    it 'rejects hashes beyond the maximum nesting depth without raising' do
+      too_deep = nested_hash(ActiveInteraction::HashFilter::MAX_NESTING + 10)
+      result = filter.process(too_deep, nil)
+      expect(result.errors.first).to be_an_instance_of(ActiveInteraction::Filter::Error)
+      expect(result.errors.first.type).to be :invalid_type
+    end
+
+    it 'counts depth through arrays, since HashWithIndifferentAccess recurses into them' do
+      mixed = { a: [{ b: [{ c: nested_hash(ActiveInteraction::HashFilter::MAX_NESTING) }] }] }
+      result = filter.process(mixed, nil)
+      expect(result.errors.first&.type).to be :invalid_type
+    end
+  end
 end
