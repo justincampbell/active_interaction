@@ -58,26 +58,21 @@ module ActiveInteraction
     private
 
     def matches?(value)
-      value.is_a?(Hash) && !exceeds_nesting_limit?(value)
+      value.is_a?(Hash) && !exceeds_nesting_limit?(value, 1)
     rescue NoMethodError # BasicObject
       false
     end
 
-    # Iterative traversal to avoid adding its own stack-depth risk.
-    def exceeds_nesting_limit?(value)
-      stack = [[value, 1]]
-      until stack.empty?
-        item, depth = stack.pop
-        return true if depth > MAX_NESTING
+    # Short-circuits at MAX_NESTING, so recursion depth is bounded by
+    # MAX_NESTING rather than by the input depth.
+    def exceeds_nesting_limit?(value, depth)
+      return true if depth > MAX_NESTING
 
-        case item
-        when Hash
-          item.each_value { |v| stack.push([v, depth + 1]) if v.is_a?(Hash) || v.is_a?(Array) }
-        when Array
-          item.each { |v| stack.push([v, depth + 1]) if v.is_a?(Hash) || v.is_a?(Array) }
-        end
+      case value
+      when Hash then value.each_value.any? { |v| exceeds_nesting_limit?(v, depth + 1) }
+      when Array then value.any? { |v| exceeds_nesting_limit?(v, depth + 1) }
+      else false
       end
-      false
     end
 
     def strip?
